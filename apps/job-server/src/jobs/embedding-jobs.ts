@@ -16,12 +16,10 @@ interface EmbeddingConfig {
 }
 
 // Job data for embedding generation
-// provider and config are optional to support scheduled jobs that omit them;
-// the handler will fetch them from the DB using serverId in that case.
 interface GenerateItemEmbeddingsJobData {
   serverId: number;
-  provider?: "openai-compatible" | "openai" | "ollama";
-  config?: EmbeddingConfig;
+  provider: "openai-compatible" | "openai" | "ollama";
+  config: EmbeddingConfig;
   manualStart?: boolean;
 }
 
@@ -29,32 +27,12 @@ interface GenerateItemEmbeddingsJobData {
 const DEFAULT_MAX_TEXT_LENGTH = 8000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RATE_LIMIT_DELAY = 500;
-const DEFAULT_EMBEDDING_DIMENSIONS = 1536;
 const ITEMS_PER_BATCH = 100; // Items to fetch from DB at a time
 const API_BATCH_SIZE = 20; // Items to send to embedding API at once
 const MAX_CONSECUTIVE_BATCH_FAILURES = 5;
 
 // Track if index has been ensured this session (per dimension)
 const indexEnsuredForDimension = new Set<number>();
-
-/**
- * Normalize an embedding provider string to the canonical internal value.
- * Throws a clear error for any unrecognized value so bad data fails fast.
- */
-function normalizeEmbeddingProvider(
-  raw: string,
-  source: string
-): "openai-compatible" | "ollama" {
-  switch (raw) {
-    case "openai":
-    case "openai-compatible":
-      return "openai-compatible";
-    case "ollama":
-      return "ollama";
-    default:
-      throw new Error(`Unsupported embedding provider from ${source}: ${raw}`);
-  }
-}
 
 function sanitizeErrorMessage(message: string): string {
   // postgres-js style errors can include the full parameter list. For embeddings that’s a 1536-length
@@ -485,10 +463,8 @@ export async function generateItemEmbeddingsJob(
   job: PgBossJob<GenerateItemEmbeddingsJobData>
 ) {
   const startTime = Date.now();
-  const { serverId, provider: rawProvider, config: jobConfig, manualStart = false } = job.data;
-
-  let provider: "openai-compatible" | "ollama" | undefined;
-  let config: EmbeddingConfig | undefined = jobConfig;
+  const { serverId, provider: rawProvider, config, manualStart = false } = job.data;
+  const provider = rawProvider === "openai" ? "openai-compatible" : rawProvider;
 
   let totalProcessed = 0;
   let totalSkipped = 0;
@@ -533,44 +509,11 @@ export async function generateItemEmbeddingsJob(
   };
 
   try {
-    // Resolve provider and config — scheduled jobs omit these fields so we
-    // fetch them fresh from the DB here. This also means config is always
-    // up-to-date even if the user changed it after the schedule was created.
-    // All resolution is inside try so errors flow through structured logging.
-
-    // Normalize provider from job data if present
-    if (rawProvider != null) {
-      provider = normalizeEmbeddingProvider(rawProvider, "job data");
+    if (!provider) {
+      throw new Error("Embedding provider not configured.");
     }
-
-    // Fetch from DB if provider or config is missing
-    if (!provider || !config?.baseUrl || !config?.model) {
-      const serverConfig = await db
-        .select({
-          embeddingProvider: servers.embeddingProvider,
-          embeddingBaseUrl: servers.embeddingBaseUrl,
-          embeddingApiKey: servers.embeddingApiKey,
-          embeddingModel: servers.embeddingModel,
-          embeddingDimensions: servers.embeddingDimensions,
-        })
-        .from(servers)
-        .where(eq(servers.id, serverId))
-        .limit(1);
-
-      const s = serverConfig[0];
-
-      if (!s?.embeddingProvider || !s?.embeddingBaseUrl || !s?.embeddingModel) {
-        throw new Error("Embedding provider not configured.");
-      }
-
-      provider = normalizeEmbeddingProvider(s.embeddingProvider, `database for server ${serverId}`);
-
-      config = {
-        baseUrl: s.embeddingBaseUrl,
-        apiKey: s.embeddingApiKey ?? undefined,
-        model: s.embeddingModel,
-        dimensions: s.embeddingDimensions ?? DEFAULT_EMBEDDING_DIMENSIONS,
-      };
+    if (!config.baseUrl || !config.model) {
+      throw new Error("Embedding configuration incomplete.");
     }
 
     console.info(
