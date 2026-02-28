@@ -288,6 +288,7 @@ const PosterComponent = ({
         alt={`${item.name} poster`}
         width={width}
         height={height}
+        unoptimized
         className={`object-cover transition-opacity duration-300 ${
           isLoading ? "opacity-0" : "opacity-100"
         }`}

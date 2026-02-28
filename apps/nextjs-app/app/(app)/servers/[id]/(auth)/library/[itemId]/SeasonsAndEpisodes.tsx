@@ -118,6 +118,7 @@ function EpisodePoster({
         alt={`${episode.name} poster`}
         width={160}
         height={90}
+        unoptimized
         className={`object-cover w-full h-full transition-opacity duration-300 ${
           isLoading ? "opacity-0" : "opacity-100"
         }`}

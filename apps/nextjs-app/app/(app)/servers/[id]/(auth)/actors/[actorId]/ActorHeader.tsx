@@ -54,6 +54,7 @@ export function ActorHeader({ actor, server }: ActorHeaderProps) {
                   alt={actor.name}
                   width={300}
                   height={400}
+                  unoptimized
                   className="w-full h-full object-cover"
                   onError={() => setHasError(true)}
                 />

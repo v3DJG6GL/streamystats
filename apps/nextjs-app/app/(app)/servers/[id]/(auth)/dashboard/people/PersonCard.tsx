@@ -106,6 +106,7 @@ export function PersonCard({ person, server, variant, displayMode }: Props) {
               src={imageUrl}
               alt={person.name}
               fill
+              unoptimized
               className="object-cover"
               onError={() => setHasError(true)}
             />

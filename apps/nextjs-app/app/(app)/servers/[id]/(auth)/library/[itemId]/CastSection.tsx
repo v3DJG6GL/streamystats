@@ -49,6 +49,7 @@ function PersonCard({
                   alt={person.name}
                   width={160}
                   height={240}
+                  unoptimized
                   className="w-full h-full object-cover rounded-t-lg"
                   onError={() => setHasError(true)}
                 />

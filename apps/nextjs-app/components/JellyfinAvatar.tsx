@@ -54,6 +54,7 @@ export default function JellyfinAvatar({
           alt={user.name || "User"}
           width={64}
           height={64}
+          unoptimized
           className="aspect-square h-full w-full object-cover"
           onError={() => setHasError(true)}
         />
