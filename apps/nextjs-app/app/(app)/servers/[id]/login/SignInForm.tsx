@@ -40,14 +40,12 @@ interface Props {
   server: ServerPublic;
   servers: ServerPublic[];
   quickConnectEnabled?: boolean;
-  disablePasswordLogin?: boolean;
 }
 
 export const SignInForm: React.FC<Props> = ({
   server,
   servers,
   quickConnectEnabled,
-  disablePasswordLogin,
 }) => {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -90,9 +88,7 @@ export const SignInForm: React.FC<Props> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {quickConnectEnabled && disablePasswordLogin ? (
-            <QuickConnectForm serverId={server.id} />
-          ) : quickConnectEnabled ? (
+          {quickConnectEnabled ? (
             <Tabs defaultValue="password">
               <TabsList className="mb-4 w-full">
                 <TabsTrigger value="password" className="flex-1">
@@ -114,7 +110,11 @@ export const SignInForm: React.FC<Props> = ({
               </TabsContent>
             </Tabs>
           ) : (
-            <PasswordForm form={form} loading={loading} onSubmit={onSubmit} />
+            <PasswordForm
+              form={form}
+              loading={loading}
+              onSubmit={onSubmit}
+            />
           )}
           {/* Only show this section if there are other servers available */}
           {servers.filter((s) => s.id !== server.id).length > 0 && (
@@ -167,7 +167,10 @@ function PasswordForm({
 }) {
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="w-full space-y-6"
+      >
         <FormField
           control={form.control}
           name="username"
@@ -175,7 +178,11 @@ function PasswordForm({
             <FormItem>
               <FormLabel>Username</FormLabel>
               <FormControl>
-                <Input placeholder="John" {...field} autoComplete="username" />
+                <Input
+                  placeholder="John"
+                  {...field}
+                  autoComplete="username"
+                />
               </FormControl>
               <FormDescription>Enter your Jellyfin username</FormDescription>
               <FormMessage />

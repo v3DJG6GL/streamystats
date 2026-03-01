@@ -5,7 +5,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
 import { Button } from "@/components/ui/button";
-import { initiateQuickConnectLogin, loginWithQuickConnect } from "@/lib/auth";
+import {
+  initiateQuickConnectLogin,
+  loginWithQuickConnect,
+} from "@/lib/auth";
 
 type Phase = "idle" | "initiating" | "waiting" | "authenticating" | "error";
 
@@ -19,11 +22,16 @@ export const QuickConnectForm: React.FC<Props> = ({ serverId }) => {
   const [code, setCode] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearPolling = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
   }, []);
 
@@ -41,11 +49,20 @@ export const QuickConnectForm: React.FC<Props> = ({ serverId }) => {
       setCode(result.code);
       setPhase("waiting");
 
+      const QC_TIMEOUT_MS = 5 * 60 * 1000;
+      timeoutRef.current = setTimeout(() => {
+        clearPolling();
+        setPhase("error");
+        setErrorMessage("QuickConnect code expired. Please try again.");
+      }, QC_TIMEOUT_MS);
+
       intervalRef.current = setInterval(async () => {
         try {
-          const res = await fetch(
-            `/api/quick-connect/status?serverId=${serverId}&secret=${encodeURIComponent(result.secret)}`,
-          );
+          const res = await fetch("/api/quick-connect/status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ serverId: String(serverId), secret: result.secret }),
+          });
           if (!res.ok) return;
           const data = (await res.json()) as { authenticated: boolean };
           if (data.authenticated) {
@@ -107,7 +124,9 @@ export const QuickConnectForm: React.FC<Props> = ({ serverId }) => {
           <p className="text-sm text-muted-foreground mb-2">
             Enter this code in Jellyfin:
           </p>
-          <p className="text-4xl font-mono font-bold tracking-widest">{code}</p>
+          <p className="text-4xl font-mono font-bold tracking-widest">
+            {code}
+          </p>
         </div>
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Spinner />
