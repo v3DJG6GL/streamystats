@@ -302,6 +302,13 @@
       "when": 1772299142825,
       "tag": "0042_high_captain_midlands",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1772327139840,
+      "tag": "0043_burly_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }

@@ -53,10 +53,10 @@ export function LoginMethodManager({
           Login Method
         </CardTitle>
         <CardDescription>
-          Control how users authenticate with this server. When password login is
-          disabled, only QuickConnect will be available. If QuickConnect is not
-          enabled on your Jellyfin server, password login will remain available
-          as a fallback.
+          Control how users authenticate with this server. When password login
+          is disabled, only QuickConnect will be available. If QuickConnect is
+          not enabled on your Jellyfin server, password login will remain
+          available as a fallback.
         </CardDescription>
       </CardHeader>
       <CardContent>

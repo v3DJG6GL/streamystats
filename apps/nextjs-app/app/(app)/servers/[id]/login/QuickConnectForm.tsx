@@ -5,10 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Spinner } from "@/components/Spinner";
 import { Button } from "@/components/ui/button";
-import {
-  initiateQuickConnectLogin,
-  loginWithQuickConnect,
-} from "@/lib/auth";
+import { initiateQuickConnectLogin, loginWithQuickConnect } from "@/lib/auth";
 
 type Phase = "idle" | "initiating" | "waiting" | "authenticating" | "error";
 
@@ -110,9 +107,7 @@ export const QuickConnectForm: React.FC<Props> = ({ serverId }) => {
           <p className="text-sm text-muted-foreground mb-2">
             Enter this code in Jellyfin:
           </p>
-          <p className="text-4xl font-mono font-bold tracking-widest">
-            {code}
-          </p>
+          <p className="text-4xl font-mono font-bold tracking-widest">{code}</p>
         </div>
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Spinner />

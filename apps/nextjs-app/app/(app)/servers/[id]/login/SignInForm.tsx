@@ -114,11 +114,7 @@ export const SignInForm: React.FC<Props> = ({
               </TabsContent>
             </Tabs>
           ) : (
-            <PasswordForm
-              form={form}
-              loading={loading}
-              onSubmit={onSubmit}
-            />
+            <PasswordForm form={form} loading={loading} onSubmit={onSubmit} />
           )}
           {/* Only show this section if there are other servers available */}
           {servers.filter((s) => s.id !== server.id).length > 0 && (
@@ -171,10 +167,7 @@ function PasswordForm({
 }) {
   return (
     <Form {...form}>
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="w-full space-y-6"
-      >
+      <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-6">
         <FormField
           control={form.control}
           name="username"
@@ -182,11 +175,7 @@ function PasswordForm({
             <FormItem>
               <FormLabel>Username</FormLabel>
               <FormControl>
-                <Input
-                  placeholder="John"
-                  {...field}
-                  autoComplete="username"
-                />
+                <Input placeholder="John" {...field} autoComplete="username" />
               </FormControl>
               <FormDescription>Enter your Jellyfin username</FormDescription>
               <FormMessage />

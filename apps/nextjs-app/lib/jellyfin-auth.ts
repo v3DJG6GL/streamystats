@@ -227,18 +227,15 @@ export async function authenticateWithQuickConnect(args: {
 > {
   const serverUrl = normalizeBaseUrl(args.serverUrl);
   try {
-    const res = await fetch(
-      `${serverUrl}/Users/AuthenticateWithQuickConnect`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: embyAuthHeader(),
-        },
-        body: JSON.stringify({ Secret: args.secret }),
-        signal: AbortSignal.timeout(10_000),
+    const res = await fetch(`${serverUrl}/Users/AuthenticateWithQuickConnect`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: embyAuthHeader(),
       },
-    );
+      body: JSON.stringify({ Secret: args.secret }),
+      signal: AbortSignal.timeout(10_000),
+    });
     if (!res.ok) {
       if (res.status === 401) {
         return { ok: false, error: "QuickConnect authorization failed" };

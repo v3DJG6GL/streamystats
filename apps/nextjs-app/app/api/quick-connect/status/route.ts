@@ -26,10 +26,7 @@ export async function GET(request: Request) {
   });
 
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: result.error }, { status: 502 });
   }
 
   return NextResponse.json({ authenticated: result.authenticated });
