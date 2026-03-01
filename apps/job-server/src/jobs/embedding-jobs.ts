@@ -57,7 +57,7 @@ function normalizeEmbeddingProvider(
 }
 
 function sanitizeErrorMessage(message: string): string {
-  // postgres-js style errors can include the full parameter list. For embeddings that’s a 1536-length
+  // postgres-js style errors can include the full parameter list. For embeddings that's a 1536-length
   // vector which is noisy and can bloat logs.
   if (message.includes("Failed query:") && message.includes("params:")) {
     const beforeParams = message.split("params:")[0]?.trimEnd() ?? message;

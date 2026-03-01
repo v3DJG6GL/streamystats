@@ -1,1 +1,1 @@
-ALTER TABLE "servers" ADD COLUMN "internal_url" text;
+ALTER TABLE "servers" ADD COLUMN IF NOT EXISTS "internal_url" text;

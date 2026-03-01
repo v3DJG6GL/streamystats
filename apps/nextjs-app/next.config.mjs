@@ -5,7 +5,7 @@ const nextConfig = {
   deploymentId: process.env.DEPLOYMENT_ID,
   cacheComponents: true,
   images: {
-    dangerouslyAllowLocalIP: process.env.NODE_ENV === "development",
+    dangerouslyAllowLocalIP: true,
     // Broad remote patterns are required because Jellyfin servers are
     // self-hosted at arbitrary domains/IPs. The Next.js image optimizer
     // proxies album art and backdrops from whichever Jellyfin host the
