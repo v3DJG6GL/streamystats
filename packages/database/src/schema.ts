@@ -159,6 +159,12 @@ export const servers = pgTable(
       .notNull()
       .default(false),
 
+    // When true, password-based login is disabled and only QuickConnect is shown
+    // Falls back to password login if QuickConnect is not enabled on the Jellyfin server
+    disablePasswordLogin: boolean("disable_password_login")
+      .notNull()
+      .default(false),
+
     // Display timezone for this server (IANA timezone identifier)
     // All data is stored in UTC; this controls display formatting only
     timezone: text("timezone").notNull().default("Etc/UTC"),
@@ -910,6 +916,21 @@ export const watchlistItems = pgTable(
   ]
 );
 
+// Junction table tracking which libraries each item belongs to.
+// An item can appear in multiple Jellyfin libraries with the same ID.
+export const itemLibraries = pgTable(
+  "item_libraries",
+  {
+    itemId: text("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    libraryId: text("library_id")
+      .notNull()
+      .references(() => libraries.id, { onDelete: "cascade" }),
+  },
+  (table) => [primaryKey({ columns: [table.itemId, table.libraryId] })],
+);
+
 // Define relationships
 export const serversRelations = relations(servers, ({ many }) => ({
   libraries: many(libraries),
@@ -985,6 +1006,18 @@ export const itemsRelations = relations(items, ({ one, many }) => ({
   hiddenRecommendations: many(hiddenRecommendations),
   watchlistItems: many(watchlistItems),
   itemPeople: many(itemPeople),
+  itemLibraries: many(itemLibraries),
+}));
+
+export const itemLibrariesRelations = relations(itemLibraries, ({ one }) => ({
+  item: one(items, {
+    fields: [itemLibraries.itemId],
+    references: [items.id],
+  }),
+  library: one(libraries, {
+    fields: [itemLibraries.libraryId],
+    references: [libraries.id],
+  }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one, many }) => ({
@@ -1151,3 +1184,6 @@ export type NewPerson = typeof people.$inferInsert;
 
 export type ItemPerson = typeof itemPeople.$inferSelect;
 export type NewItemPerson = typeof itemPeople.$inferInsert;
+
+export type ItemLibrary = typeof itemLibraries.$inferSelect;
+export type NewItemLibrary = typeof itemLibraries.$inferInsert;
