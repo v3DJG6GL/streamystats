@@ -268,18 +268,28 @@ export const getTotalWatchTime = async ({
   if (excludedUserIds.length > 0) {
     whereConditions.push(notInArray(sessions.userId, excludedUserIds));
   }
+
+  const selectFields = {
+    playDuration: sum(sessions.playDuration),
+    plays: count(),
+  };
+
+  // Only join items when library exclusions need filtering on items.libraryId.
+  // Without the join, sessions with null itemId (e.g. deleted/unsynced items) are included.
+  let result;
   if (excludedLibraryIds.length > 0) {
     whereConditions.push(notInArray(items.libraryId, excludedLibraryIds));
+    result = await db
+      .select(selectFields)
+      .from(sessions)
+      .innerJoin(items, eq(sessions.itemId, items.id))
+      .where(and(...whereConditions));
+  } else {
+    result = await db
+      .select(selectFields)
+      .from(sessions)
+      .where(and(...whereConditions));
   }
-
-  const result = await db
-    .select({
-      playDuration: sum(sessions.playDuration),
-      plays: count(),
-    })
-    .from(sessions)
-    .innerJoin(items, eq(sessions.itemId, items.id))
-    .where(and(...whereConditions));
 
   return {
     watchTime: Number(result[0]?.playDuration || 0),
