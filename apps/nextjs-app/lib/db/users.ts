@@ -277,14 +277,16 @@ export const getTotalWatchTime = async ({
   };
 
   // Only join items when library exclusions need filtering on items.libraryId.
-  // Without the join, sessions with null itemId (e.g. deleted/unsynced items) are included.
+  // Use leftJoin so sessions with null itemId (deleted/unsynced items) are preserved.
   let result;
   if (excludedLibraryIds.length > 0) {
-    whereConditions.push(notInArray(items.libraryId, excludedLibraryIds));
+    whereConditions.push(
+      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+    );
     result = await db
       .select(selectFields)
       .from(sessions)
-      .innerJoin(items, eq(sessions.itemId, items.id))
+      .leftJoin(items, eq(sessions.itemId, items.id))
       .where(and(...whereConditions));
   } else {
     result = await db
