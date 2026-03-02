@@ -156,7 +156,7 @@ export const getWatchTimePerWeekDay = async ({
       .from(sessions)
       .where(and(...whereConditions))
       .groupBy(groupByClause);
-  };
+  }
 
   // Convert to map for easy lookup
   const resultMap: Record<string, number> = {};
