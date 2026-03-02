@@ -2,7 +2,7 @@
 
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { shouldUseSecureCookies } from "@/lib/secure-cookies";
 import { getServerWithSecrets } from "./db/server";
 import {
@@ -13,38 +13,64 @@ import {
 import { getInternalUrl } from "./server-url";
 import { createSession } from "./session";
 
+// Assumes a trusted reverse proxy strips and sets x-forwarded-for.
+// Without a trusted proxy, clients can spoof this header to bypass rate limiting.
+async function getClientIp(): Promise<string> {
+  const h = await headers();
+  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+}
+
 // In-memory rate limiters — per-process only; does not synchronize across instances.
-const qcInitTimestamps = new Map<number, number[]>();
+function pruneExpiredEntries(map: Map<string, number[]>, windowMs: number) {
+  const now = Date.now();
+  for (const [key, timestamps] of map) {
+    const recent = timestamps.filter((t) => now - t < windowMs);
+    if (recent.length === 0) map.delete(key);
+    else map.set(key, recent);
+  }
+}
+
+const qcInitTimestamps = new Map<string, number[]>();
 const QC_RATE_LIMIT = 5;
 const QC_RATE_WINDOW_MS = 60_000;
 
-function enforceQuickConnectRateLimit(serverId: number): void {
+function enforceQuickConnectRateLimit(
+  serverId: number,
+  clientIp: string,
+): void {
+  const key = `${serverId}:${clientIp}`;
   const now = Date.now();
-  const recent = (qcInitTimestamps.get(serverId) ?? []).filter(
+  const recent = (qcInitTimestamps.get(key) ?? []).filter(
     (t) => now - t < QC_RATE_WINDOW_MS,
   );
   if (recent.length >= QC_RATE_LIMIT) {
     throw new Error("Too many QuickConnect attempts. Please try again later.");
   }
   recent.push(now);
-  qcInitTimestamps.set(serverId, recent);
+  qcInitTimestamps.set(key, recent);
 }
 
-const loginTimestamps = new Map<number, number[]>();
+const loginTimestamps = new Map<string, number[]>();
 const LOGIN_RATE_LIMIT = 10;
 const LOGIN_RATE_WINDOW_MS = 60_000;
 
-function enforceLoginRateLimit(serverId: number): void {
+function enforceLoginRateLimit(serverId: number, clientIp: string): void {
+  const key = `${serverId}:${clientIp}`;
   const now = Date.now();
-  const recent = (loginTimestamps.get(serverId) ?? []).filter(
+  const recent = (loginTimestamps.get(key) ?? []).filter(
     (t) => now - t < LOGIN_RATE_WINDOW_MS,
   );
   if (recent.length >= LOGIN_RATE_LIMIT) {
     throw new Error("Too many login attempts. Please try again later.");
   }
   recent.push(now);
-  loginTimestamps.set(serverId, recent);
+  loginTimestamps.set(key, recent);
 }
+
+setInterval(() => {
+  pruneExpiredEntries(qcInitTimestamps, QC_RATE_WINDOW_MS);
+  pruneExpiredEntries(loginTimestamps, LOGIN_RATE_WINDOW_MS);
+}, 5 * 60_000).unref();
 
 export const login = async ({
   serverId,
@@ -55,7 +81,8 @@ export const login = async ({
   username: string;
   password?: string | null;
 }): Promise<void> => {
-  enforceLoginRateLimit(serverId);
+  const clientIp = await getClientIp();
+  enforceLoginRateLimit(serverId, clientIp);
 
   const server = await getServerWithSecrets({ serverId: serverId.toString() });
 
@@ -116,7 +143,8 @@ export const initiateQuickConnectLogin = async ({
   { ok: true; secret: string; code: string } | { ok: false; error: string }
 > => {
   try {
-    enforceQuickConnectRateLimit(serverId);
+    const clientIp = await getClientIp();
+    enforceQuickConnectRateLimit(serverId, clientIp);
   } catch (e) {
     return {
       ok: false,
@@ -147,6 +175,9 @@ export const loginWithQuickConnect = async ({
   serverId: number;
   secret: string;
 }): Promise<void> => {
+  const clientIp = await getClientIp();
+  enforceQuickConnectRateLimit(serverId, clientIp);
+
   const server = await getServerWithSecrets({ serverId: serverId.toString() });
   if (!server) {
     throw new Error("Server not found");
