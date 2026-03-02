@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerWithSecrets } from "@/lib/db/server";
+import { getServer } from "@/lib/db/server";
 import { checkQuickConnectStatus } from "@/lib/jellyfin-auth";
 import { getInternalUrl } from "@/lib/server-url";
 
@@ -31,7 +31,11 @@ function enforcePollRateLimit(ip: string): boolean {
   const recent = (pollTimestamps.get(ip) ?? []).filter(
     (t) => now - t < POLL_RATE_WINDOW_MS,
   );
-  if (recent.length >= POLL_RATE_LIMIT) return false;
+  const effectiveLimit =
+    ip === "unknown"
+      ? Math.max(1, Math.floor(POLL_RATE_LIMIT / 5))
+      : POLL_RATE_LIMIT;
+  if (recent.length >= effectiveLimit) return false;
   if (!pollTimestamps.has(ip) && pollTimestamps.size >= MAX_RATE_LIMIT_KEYS) return false;
   recent.push(now);
   pollTimestamps.set(ip, recent);
@@ -68,7 +72,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const server = await getServerWithSecrets({ serverId });
+  const server = await getServer({ serverId });
   if (!server) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
