@@ -5,7 +5,6 @@ import "server-only";
 import { db, items, sessions, type User, users } from "@streamystats/database";
 import {
   and,
-  count,
   eq,
   gte,
   inArray,
@@ -271,7 +270,10 @@ export const getTotalWatchTime = async ({
 
   const selectFields = {
     playDuration: sum(sessions.playDuration),
-    plays: count(),
+    plays:
+      sql<number>`count(case when ${sessions.playDuration} > 0 then 1 end)`.mapWith(
+        Number,
+      ),
   };
 
   // Only join items when library exclusions need filtering on items.libraryId.
