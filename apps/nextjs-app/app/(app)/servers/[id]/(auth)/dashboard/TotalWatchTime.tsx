@@ -23,7 +23,7 @@ const TotalWatchTime: React.FC<Props> = async ({
     redirect("/not-found");
   }
 
-  const d1 = await getTotalWatchTime({
+  const { watchTime } = await getTotalWatchTime({
     serverId: server.id,
     userId: isAdmin ? undefined : me.id,
     startDate,
@@ -40,7 +40,7 @@ const TotalWatchTime: React.FC<Props> = async ({
       </CardHeader>
       <CardContent>
         <div className="text-start">
-          <p className="text-3xl font-bold">{formatDuration(d1)}</p>
+          <p className="text-3xl font-bold">{formatDuration(watchTime)}</p>
           <p className="text-sm text-muted-foreground">
             Total time spent watching in selected period
           </p>

@@ -5,6 +5,7 @@ import "server-only";
 import { db, items, sessions, type User, users } from "@streamystats/database";
 import {
   and,
+  count,
   eq,
   gte,
   inArray,
@@ -242,7 +243,7 @@ export const getTotalWatchTime = async ({
   userId?: string | number;
   startDate?: string;
   endDate?: string;
-}): Promise<number> => {
+}): Promise<{ watchTime: number; plays: number }> => {
   const start = getStartDateConstraint(startDate);
   const end = getEndDateConstraint(endDate);
 
@@ -274,12 +275,16 @@ export const getTotalWatchTime = async ({
   const result = await db
     .select({
       playDuration: sum(sessions.playDuration),
+      plays: count(),
     })
     .from(sessions)
     .innerJoin(items, eq(sessions.itemId, items.id))
     .where(and(...whereConditions));
 
-  return Number(result[0]?.playDuration || 0);
+  return {
+    watchTime: Number(result[0]?.playDuration || 0),
+    plays: result[0]?.plays ?? 0,
+  };
 };
 
 interface UserWithWatchTime {
@@ -565,7 +570,7 @@ export const getServerStatistics = async ({
   serverId: string | number;
 }) => {
   const [
-    totalWatchTime,
+    totalWatchTimeResult,
     watchTimePerWeekDay,
     watchTimePerHour,
     userStatsSummary,
@@ -577,7 +582,7 @@ export const getServerStatistics = async ({
   ]);
 
   return {
-    totalWatchTime,
+    totalWatchTime: totalWatchTimeResult.watchTime,
     watchTimePerWeekDay,
     watchTimePerHour,
     userStatsSummary,
@@ -611,7 +616,7 @@ export const getUserWatchStats = async ({
     throw new Error("userId is required for getUserWatchStats");
   }
 
-  const [totalWatchTime, userSessions] = await Promise.all([
+  const [totalWatchTimeResult, userSessions] = await Promise.all([
     getTotalWatchTime({ serverId, userId }),
     db
       .select({
@@ -661,12 +666,9 @@ export const getUserWatchStats = async ({
   longestStreak = Math.max(longestStreak, currentStreak);
 
   return {
-    total_watch_time: totalWatchTime,
-    total_plays: userSessions.filter(
-      (s: { playDuration: number | null }) =>
-        s.playDuration && s.playDuration > 0,
-    ).length,
-    longest_streak: longestStreak, // Return the number of days directly
+    total_watch_time: totalWatchTimeResult.watchTime,
+    total_plays: totalWatchTimeResult.plays,
+    longest_streak: longestStreak,
   };
 };
 
