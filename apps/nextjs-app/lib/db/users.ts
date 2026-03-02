@@ -128,22 +128,35 @@ export const getWatchTimePerWeekDay = async ({
   if (excludedUserIds.length > 0) {
     whereConditions.push(notInArray(sessions.userId, excludedUserIds));
   }
-  if (excludedLibraryIds.length > 0) {
-    whereConditions.push(notInArray(items.libraryId, excludedLibraryIds));
-  }
 
-  // Use SQL GROUP BY for aggregation instead of fetching all rows
-  const result = await db
-    .select({
-      weekDay: sql<string>`TRIM(TO_CHAR(${sessions.startTime}, 'Day'))`.as(
-        "weekDay",
-      ),
-      watchTime: sum(sessions.playDuration).as("watchTime"),
-    })
-    .from(sessions)
-    .innerJoin(items, eq(sessions.itemId, items.id))
-    .where(and(...whereConditions))
-    .groupBy(sql`TRIM(TO_CHAR(${sessions.startTime}, 'Day'))`);
+  const selectFields = {
+    weekDay: sql<string>`TRIM(TO_CHAR(${sessions.startTime}, 'Day'))`.as(
+      "weekDay",
+    ),
+    watchTime: sum(sessions.playDuration).as("watchTime"),
+  };
+  const groupByClause = sql`TRIM(TO_CHAR(${sessions.startTime}, 'Day'))`;
+
+  // Only join items when library exclusions need filtering on items.libraryId.
+  // Use leftJoin so sessions with null itemId (deleted/unsynced items) are preserved.
+  let result;
+  if (excludedLibraryIds.length > 0) {
+    whereConditions.push(
+      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+    );
+    result = await db
+      .select(selectFields)
+      .from(sessions)
+      .leftJoin(items, eq(sessions.itemId, items.id))
+      .where(and(...whereConditions))
+      .groupBy(groupByClause);
+  } else {
+    result = await db
+      .select(selectFields)
+      .from(sessions)
+      .where(and(...whereConditions))
+      .groupBy(groupByClause);
+  };
 
   // Convert to map for easy lookup
   const resultMap: Record<string, number> = {};
