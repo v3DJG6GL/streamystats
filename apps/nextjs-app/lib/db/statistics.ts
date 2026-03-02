@@ -433,7 +433,7 @@ export async function getMostWatchedDay({
   userId?: string | number;
 }): Promise<MostWatchedDay | null> {
   // Get exclusion settings
-  const { userExclusion, itemLibraryExclusion } =
+  const { userExclusion, excludedLibraryIds } =
     await getStatisticsExclusions(serverId);
 
   const whereConditions: SQL[] = [
@@ -451,22 +451,37 @@ export async function getMostWatchedDay({
   if (userExclusion) {
     whereConditions.push(userExclusion);
   }
-  if (itemLibraryExclusion) {
-    whereConditions.push(itemLibraryExclusion);
-  }
 
-  // Join with items to filter by library
-  const rows = await db
-    .select({
-      date: sql<string>`DATE(${sessions.startTime})`.as("date"),
-      totalWatchTime: sum(sessions.playDuration).as("totalWatchTime"),
-    })
-    .from(sessions)
-    .innerJoin(items, eq(sessions.itemId, items.id))
-    .where(and(...whereConditions))
-    .groupBy(sql`DATE(${sessions.startTime})`)
-    .orderBy(desc(sum(sessions.playDuration)))
-    .limit(1);
+  const selectFields = {
+    date: sql<string>`DATE(${sessions.startTime})`.as("date"),
+    totalWatchTime: sum(sessions.playDuration).as("totalWatchTime"),
+  };
+  const groupByClause = sql`DATE(${sessions.startTime})`;
+
+  // Only join items when library exclusions need filtering on items.libraryId.
+  // Use leftJoin so sessions with null itemId (deleted/unsynced items) are preserved.
+  let rows;
+  if (excludedLibraryIds.length > 0) {
+    whereConditions.push(
+      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+    );
+    rows = await db
+      .select(selectFields)
+      .from(sessions)
+      .leftJoin(items, eq(sessions.itemId, items.id))
+      .where(and(...whereConditions))
+      .groupBy(groupByClause)
+      .orderBy(desc(sum(sessions.playDuration)))
+      .limit(1);
+  } else {
+    rows = await db
+      .select(selectFields)
+      .from(sessions)
+      .where(and(...whereConditions))
+      .groupBy(groupByClause)
+      .orderBy(desc(sum(sessions.playDuration)))
+      .limit(1);
+  }
 
   const row = rows[0];
   if (!row?.date) return null;
