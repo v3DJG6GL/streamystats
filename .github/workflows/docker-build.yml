@@ -2,7 +2,7 @@ name: CI – docker build & push
 
 on:
   push:
-    branches: [main]
+    branches: [main, test/combined-build]
 
 permissions:
   contents: read
