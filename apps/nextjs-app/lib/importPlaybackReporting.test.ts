@@ -196,24 +196,16 @@ describe("normalizePosition", () => {
     expect(result).toEqual({ positionKind: "invalid" });
   });
 
-  test("converts milliseconds to seconds when >= 86400 and < 6h result", () => {
-    // 74076 ms = 74.076 seconds, which is plausible
-    const result = normalizePosition(74076);
-    expect(result.positionKind).toBe("seconds");
-    expect(result.positionSeconds).toBe(74076);
+  test("keeps values below 86400 as valid seconds", () => {
+    expect(normalizePosition(74076)).toEqual({
+      positionSeconds: 74076,
+      positionKind: "seconds",
+    });
   });
 
-  test("converts large milliseconds value to seconds", () => {
-    // 300000 ms = 300 seconds = 5 minutes, plausible after conversion
-    const result = normalizePosition(300000);
-    expect(result.positionKind).toBe("milliseconds");
-    expect(result.positionSeconds).toBe(300);
-  });
-
-  test("marks absurdly large values as invalid", () => {
-    // 100000000 ms = 100000 seconds = ~27 hours, too long
-    const result = normalizePosition(100000000);
-    expect(result.positionKind).toBe("invalid");
+  test("marks values >= 86400 as invalid (ghost/stuck sessions)", () => {
+    expect(normalizePosition(300000)).toEqual({ positionKind: "invalid" });
+    expect(normalizePosition(100000000)).toEqual({ positionKind: "invalid" });
   });
 
   test("handles value just below 24h threshold", () => {
@@ -224,12 +216,9 @@ describe("normalizePosition", () => {
     });
   });
 
-  test("handles value at 24h threshold", () => {
-    // 86400 seconds = 24 hours, treated as potential ms
-    // 86400 / 1000 = 86.4 seconds, plausible
+  test("handles value at 24h threshold as invalid", () => {
     const result = normalizePosition(86400);
-    expect(result.positionKind).toBe("milliseconds");
-    expect(result.positionSeconds).toBe(86.4);
+    expect(result.positionKind).toBe("invalid");
   });
 });
 

@@ -15,7 +15,7 @@ export const HEX32 = /^[0-9a-f]{32}$/i;
 
 export type ItemType = "Movie" | "Episode" | (string & {});
 export type PlayMode = "DirectPlay" | "DirectStream" | "Transcode" | "Other";
-export type PositionKind = "seconds" | "milliseconds" | "invalid";
+export type PositionKind = "seconds" | "invalid";
 
 export interface PlayMethodParsed {
   mode: PlayMode;
@@ -132,9 +132,9 @@ export function parsePlayMethod(raw: string): PlayMethodParsed {
 }
 
 /**
- * Normalize position value with heuristic for ms vs seconds detection.
+ * Normalize position value.
  * INT32_MIN (-2147483648) is treated as invalid sentinel.
- * Values >= 86400 (24h) are assumed to be milliseconds if resulting seconds < 6h.
+ * Values >= 86400 (24h) are impossible playback positions and marked invalid.
  */
 export function normalizePosition(rawNum: number): {
   positionSeconds?: number;
@@ -144,13 +144,7 @@ export function normalizePosition(rawNum: number): {
     return { positionKind: "invalid" };
   }
 
-  // Values >= 24h in seconds likely mean milliseconds
   if (rawNum >= 86400) {
-    const asSeconds = rawNum / 1000;
-    // Only accept if result is plausible (< 6 hours)
-    if (asSeconds > 0 && asSeconds < 21600) {
-      return { positionSeconds: asSeconds, positionKind: "milliseconds" };
-    }
     return { positionKind: "invalid" };
   }
 
