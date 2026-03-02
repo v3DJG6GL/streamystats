@@ -223,21 +223,36 @@ export const getWatchTimePerHour = async ({
   if (excludedUserIds.length > 0) {
     whereConditions.push(notInArray(sessions.userId, excludedUserIds));
   }
-  if (excludedLibraryIds.length > 0) {
-    whereConditions.push(notInArray(items.libraryId, excludedLibraryIds));
-  }
 
-  // Use SQL GROUP BY for aggregation instead of fetching all rows
-  const result = await db
-    .select({
-      hour: sql<number>`EXTRACT(HOUR FROM ${sessions.startTime})`.as("hour"),
-      watchTime: sum(sessions.playDuration).as("watchTime"),
-    })
-    .from(sessions)
-    .innerJoin(items, eq(sessions.itemId, items.id))
-    .where(and(...whereConditions))
-    .groupBy(sql`EXTRACT(HOUR FROM ${sessions.startTime})`)
-    .orderBy(sql`EXTRACT(HOUR FROM ${sessions.startTime})`);
+  const selectFields = {
+    hour: sql<number>`EXTRACT(HOUR FROM ${sessions.startTime})`.as("hour"),
+    watchTime: sum(sessions.playDuration).as("watchTime"),
+  };
+  const groupByClause = sql`EXTRACT(HOUR FROM ${sessions.startTime})`;
+  const orderByClause = sql`EXTRACT(HOUR FROM ${sessions.startTime})`;
+
+  // Only join items when library exclusions need filtering on items.libraryId.
+  // Use leftJoin so sessions with null itemId (deleted/unsynced items) are preserved.
+  let result;
+  if (excludedLibraryIds.length > 0) {
+    whereConditions.push(
+      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+    );
+    result = await db
+      .select(selectFields)
+      .from(sessions)
+      .leftJoin(items, eq(sessions.itemId, items.id))
+      .where(and(...whereConditions))
+      .groupBy(groupByClause)
+      .orderBy(orderByClause);
+  } else {
+    result = await db
+      .select(selectFields)
+      .from(sessions)
+      .where(and(...whereConditions))
+      .groupBy(groupByClause)
+      .orderBy(orderByClause);
+  }
 
   return result.map((row) => ({
     hour: Number(row.hour),
