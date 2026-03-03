@@ -335,8 +335,10 @@ interface UserWithWatchTime {
 
 export const getTotalWatchTimeForUsers = async ({
   userIds,
+  serverId,
 }: {
   userIds: string[] | number[];
+  serverId: string | number;
 }): Promise<UserWithWatchTime> => {
   if (userIds.length === 0) {
     return {};
@@ -344,14 +346,40 @@ export const getTotalWatchTimeForUsers = async ({
 
   const stringUserIds = userIds.map((id) => String(id));
 
-  const results = await db
-    .select({
-      userId: sessions.userId,
-      totalWatchTime: sum(sessions.playDuration),
-    })
-    .from(sessions)
-    .where(inArray(sessions.userId, stringUserIds))
-    .groupBy(sessions.userId);
+  const { excludedUserIds, excludedLibraryIds } = await getExclusionSettings(
+    Number(serverId),
+  );
+
+  const whereConditions: SQL[] = [inArray(sessions.userId, stringUserIds)];
+  if (excludedUserIds.length > 0) {
+    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
+  }
+
+  const selectFields = {
+    userId: sessions.userId,
+    totalWatchTime: sum(sessions.playDuration),
+  };
+
+  // Only join items when library exclusions need filtering on items.libraryId.
+  // Use leftJoin so sessions with null itemId (deleted/unsynced items) are preserved.
+  let results;
+  if (excludedLibraryIds.length > 0) {
+    whereConditions.push(
+      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+    );
+    results = await db
+      .select(selectFields)
+      .from(sessions)
+      .leftJoin(items, eq(sessions.itemId, items.id))
+      .where(and(...whereConditions))
+      .groupBy(sessions.userId);
+  } else {
+    results = await db
+      .select(selectFields)
+      .from(sessions)
+      .where(and(...whereConditions))
+      .groupBy(sessions.userId);
+  }
 
   const watchTimeMap: UserWithWatchTime = {};
 
