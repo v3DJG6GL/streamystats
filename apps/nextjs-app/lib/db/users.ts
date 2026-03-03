@@ -582,9 +582,6 @@ export const getUserStatsSummaryForServer = async ({
   const needsItemTypeFilter =
     itemType && itemType !== "all" && itemType !== undefined;
 
-  // Need to join items if we have library exclusions OR item type filter
-  const needsItemJoin = needsItemTypeFilter || excludedLibraryIds.length > 0;
-
   let query = db
     .select({
       userId: sessions.userId,
@@ -595,23 +592,26 @@ export const getUserStatsSummaryForServer = async ({
     .from(sessions)
     .leftJoin(users, eq(sessions.userId, users.id));
 
-  if (needsItemJoin) {
+  if (needsItemTypeFilter) {
+    // Item type filtering requires actual item data, so innerJoin is correct
     query = query.innerJoin(items, eq(sessions.itemId, items.id));
-
-    if (needsItemTypeFilter) {
-      if (itemType === "Series") {
-        whereConditions.push(eq(items.type, "Episode"));
-      } else {
-        whereConditions.push(eq(items.type, itemType));
-      }
-    }
-
     whereConditions.push(isNotNull(sessions.itemId));
 
-    // Add library exclusion when joining items
+    if (itemType === "Series") {
+      whereConditions.push(eq(items.type, "Episode"));
+    } else {
+      whereConditions.push(eq(items.type, itemType));
+    }
+
     if (excludedLibraryIds.length > 0) {
       whereConditions.push(notInArray(items.libraryId, excludedLibraryIds));
     }
+  } else if (excludedLibraryIds.length > 0) {
+    // Only library exclusions — use leftJoin to preserve null-itemId sessions
+    query = query.leftJoin(items, eq(sessions.itemId, items.id));
+    whereConditions.push(
+      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+    );
   }
 
   const results = await query
