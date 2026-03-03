@@ -541,7 +541,7 @@ export const getUserStatsSummaryForServer = async ({
   userId?: string;
   itemType?: "Movie" | "Series" | "Episode" | "all";
 }): Promise<UserStatsSummary[]> => {
-  const { userExclusion, itemLibraryExclusion } =
+  const { userExclusion, itemLibraryExclusion, requiresItemsJoin } =
     await getStatisticsExclusions(serverId);
 
   const whereConditions: SQL[] = [
@@ -572,9 +572,6 @@ export const getUserStatsSummaryForServer = async ({
   const needsItemTypeFilter =
     itemType && itemType !== "all" && itemType !== undefined;
 
-  // Always join items for consistent results — without the join, orphaned
-  // sessions (no matching item) inflate per-user totals, then suddenly
-  // disappear when any library exclusion is enabled.
   let query = db
     .select({
       userId: sessions.userId,
@@ -583,21 +580,28 @@ export const getUserStatsSummaryForServer = async ({
       sessionCount: sql<number>`COUNT(${sessions.id})`.as("sessionCount"),
     })
     .from(sessions)
-    .leftJoin(users, eq(sessions.userId, users.id))
-    .innerJoin(items, eq(sessions.itemId, items.id));
+    .leftJoin(users, eq(sessions.userId, users.id));
 
   if (needsItemTypeFilter) {
+    // Item type filtering requires actual item data, so innerJoin is correct
+    query = query.innerJoin(items, eq(sessions.itemId, items.id));
+    whereConditions.push(isNotNull(sessions.itemId));
+
     if (itemType === "Series") {
       whereConditions.push(eq(items.type, "Episode"));
     } else {
       whereConditions.push(eq(items.type, itemType));
     }
-  }
 
-  whereConditions.push(isNotNull(sessions.itemId));
-
-  if (itemLibraryExclusion) {
-    whereConditions.push(itemLibraryExclusion);
+    if (itemLibraryExclusion) {
+      whereConditions.push(itemLibraryExclusion);
+    }
+  } else if (requiresItemsJoin) {
+    // Only library exclusions — use leftJoin to preserve null-itemId sessions
+    query = query.leftJoin(items, eq(sessions.itemId, items.id));
+    if (itemLibraryExclusion) {
+      whereConditions.push(itemLibraryExclusion);
+    }
   }
 
   const results = await query
