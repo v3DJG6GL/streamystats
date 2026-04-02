@@ -19,7 +19,7 @@ import { cookies } from "next/headers";
 import { jellyfinHeaders } from "@/lib/jellyfin-auth";
 import { getInternalUrl } from "../server-url";
 import { destroySession, getSession } from "../session";
-import { getExclusionSettings } from "./exclusions";
+import { getExclusionSettings, getStatisticsExclusions } from "./exclusions";
 import { isBetterDisplayName, normalizeGenre } from "./genres";
 import { getServer } from "./server";
 
@@ -98,18 +98,21 @@ export const getWatchTimePerWeekDay = async ({
   userId,
   startDate,
   endDate,
+  viewerUserId,
 }: {
   serverId: string | number;
   userId?: string | number;
   startDate?: string;
   endDate?: string;
+  viewerUserId?: string;
 }): Promise<WatchTimePerWeekDay[]> => {
   const start = getStartDateConstraint(startDate);
   const end = getEndDateConstraint(endDate);
 
   // Get exclusion settings
-  const { excludedUserIds, excludedLibraryIds } = await getExclusionSettings(
+  const { userExclusion, itemLibraryExclusion } = await getStatisticsExclusions(
     Number(serverId),
+    viewerUserId,
   );
 
   // Build the where condition based on whether userId is provided
@@ -125,8 +128,8 @@ export const getWatchTimePerWeekDay = async ({
   }
 
   // Add exclusion filters
-  if (excludedUserIds.length > 0) {
-    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
+  if (userExclusion) {
+    whereConditions.push(userExclusion);
   }
 
   const selectFields = {
@@ -140,9 +143,9 @@ export const getWatchTimePerWeekDay = async ({
   // Only join items when library exclusions need filtering on items.libraryId.
   // Use leftJoin so sessions with null itemId (deleted/unsynced items) are preserved.
   let result;
-  if (excludedLibraryIds.length > 0) {
+  if (itemLibraryExclusion) {
     whereConditions.push(
-      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+      sql`(${items.libraryId} IS NULL OR (${itemLibraryExclusion}))`,
     );
     result = await db
       .select(selectFields)
@@ -193,18 +196,21 @@ export const getWatchTimePerHour = async ({
   userId,
   startDate,
   endDate,
+  viewerUserId,
 }: {
   serverId: string | number;
   userId?: string | number;
   startDate?: string;
   endDate?: string;
+  viewerUserId?: string;
 }): Promise<WatchTimePerHour[]> => {
   const start = getStartDateConstraint(startDate);
   const end = getEndDateConstraint(endDate);
 
   // Get exclusion settings
-  const { excludedUserIds, excludedLibraryIds } = await getExclusionSettings(
+  const { userExclusion, itemLibraryExclusion } = await getStatisticsExclusions(
     Number(serverId),
+    viewerUserId,
   );
 
   // Build the where condition based on whether userId is provided
@@ -220,8 +226,8 @@ export const getWatchTimePerHour = async ({
   }
 
   // Add exclusion filters
-  if (excludedUserIds.length > 0) {
-    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
+  if (userExclusion) {
+    whereConditions.push(userExclusion);
   }
 
   const selectFields = {
@@ -234,9 +240,9 @@ export const getWatchTimePerHour = async ({
   // Only join items when library exclusions need filtering on items.libraryId.
   // Use leftJoin so sessions with null itemId (deleted/unsynced items) are preserved.
   let result;
-  if (excludedLibraryIds.length > 0) {
+  if (itemLibraryExclusion) {
     whereConditions.push(
-      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+      sql`(${items.libraryId} IS NULL OR (${itemLibraryExclusion}))`,
     );
     result = await db
       .select(selectFields)
@@ -265,18 +271,21 @@ export const getTotalWatchTime = async ({
   userId,
   startDate,
   endDate,
+  viewerUserId,
 }: {
   serverId: string | number;
   userId?: string | number;
   startDate?: string;
   endDate?: string;
+  viewerUserId?: string;
 }): Promise<{ watchTime: number; plays: number }> => {
   const start = getStartDateConstraint(startDate);
   const end = getEndDateConstraint(endDate);
 
   // Get exclusion settings
-  const { excludedUserIds, excludedLibraryIds } = await getExclusionSettings(
+  const { userExclusion, itemLibraryExclusion } = await getStatisticsExclusions(
     Number(serverId),
+    viewerUserId,
   );
 
   // Build the where condition based on whether userId is provided
@@ -292,8 +301,8 @@ export const getTotalWatchTime = async ({
   }
 
   // Add exclusion filters
-  if (excludedUserIds.length > 0) {
-    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
+  if (userExclusion) {
+    whereConditions.push(userExclusion);
   }
 
   const selectFields = {
@@ -307,9 +316,9 @@ export const getTotalWatchTime = async ({
   // Only join items when library exclusions need filtering on items.libraryId.
   // Use leftJoin so sessions with null itemId (deleted/unsynced items) are preserved.
   let result;
-  if (excludedLibraryIds.length > 0) {
+  if (itemLibraryExclusion) {
     whereConditions.push(
-      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+      sql`(${items.libraryId} IS NULL OR (${itemLibraryExclusion}))`,
     );
     result = await db
       .select(selectFields)
@@ -405,13 +414,18 @@ export const getUserActivityPerDay = async ({
   serverId,
   startDate,
   endDate,
+  viewerUserId,
 }: {
   serverId: string | number;
   startDate: string;
   endDate: string;
+  viewerUserId?: string;
 }): Promise<UserActivityPerDay> => {
   // Get exclusion settings
-  const { excludedUserIds } = await getExclusionSettings(Number(serverId));
+  const { userExclusion } = await getStatisticsExclusions(
+    Number(serverId),
+    viewerUserId,
+  );
 
   const whereConditions: SQL[] = [
     eq(sessions.serverId, Number(serverId)),
@@ -420,8 +434,8 @@ export const getUserActivityPerDay = async ({
   ];
 
   // Add exclusion filters
-  if (excludedUserIds.length > 0) {
-    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
+  if (userExclusion) {
+    whereConditions.push(userExclusion);
   }
 
   // Get sessions with date and user information
@@ -485,6 +499,16 @@ export const isUserAdmin = async (): Promise<boolean> => {
 };
 
 /**
+ * Get the viewer user ID for library access filtering.
+ * Returns undefined for admins (no restrictions), or the user's ID for non-admins.
+ */
+export const getViewerUserId = async (): Promise<string | undefined> => {
+  const session = await getSession();
+  if (!session) return undefined;
+  return session.isAdmin ? undefined : session.id;
+};
+
+/**
  * Validates admin status against the live Jellyfin server.
  * Use this for security-critical operations where you need real-time verification.
  */
@@ -541,17 +565,18 @@ export const getUserStatsSummaryForServer = async ({
   endDate,
   userId,
   itemType,
+  viewerUserId,
 }: {
   serverId: string | number;
   startDate?: string;
   endDate?: string;
   userId?: string;
   itemType?: "Movie" | "Series" | "Episode" | "all";
+  viewerUserId?: string;
 }): Promise<UserStatsSummary[]> => {
   // Get exclusion settings
-  const { excludedUserIds, excludedLibraryIds } = await getExclusionSettings(
-    Number(serverId),
-  );
+  const { userExclusion, itemLibraryExclusion, requiresItemsJoin } =
+    await getStatisticsExclusions(Number(serverId), viewerUserId);
 
   const whereConditions: SQL[] = [
     eq(sessions.serverId, Number(serverId)),
@@ -575,8 +600,8 @@ export const getUserStatsSummaryForServer = async ({
   }
 
   // Add exclusion filters
-  if (excludedUserIds.length > 0) {
-    whereConditions.push(notInArray(sessions.userId, excludedUserIds));
+  if (userExclusion) {
+    whereConditions.push(userExclusion);
   }
 
   const needsItemTypeFilter =
@@ -603,14 +628,15 @@ export const getUserStatsSummaryForServer = async ({
       whereConditions.push(eq(items.type, itemType));
     }
 
-    if (excludedLibraryIds.length > 0) {
-      whereConditions.push(notInArray(items.libraryId, excludedLibraryIds));
+    // Add library exclusion when joining items
+    if (itemLibraryExclusion) {
+      whereConditions.push(itemLibraryExclusion);
     }
-  } else if (excludedLibraryIds.length > 0) {
+  } else if (itemLibraryExclusion) {
     // Only library exclusions — use leftJoin to preserve null-itemId sessions
     query = query.leftJoin(items, eq(sessions.itemId, items.id));
     whereConditions.push(
-      sql`(${items.libraryId} IS NULL OR ${items.libraryId} NOT IN (${sql.join(excludedLibraryIds.map(id => sql`${id}`), sql`, `)}))`
+      sql`(${items.libraryId} IS NULL OR (${itemLibraryExclusion}))`,
     );
   }
 
