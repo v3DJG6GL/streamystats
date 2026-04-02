@@ -316,6 +316,20 @@
       "when": 1775143072868,
       "tag": "0044_marvelous_riptide",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1775144761867,
+      "tag": "0045_cold_goblin_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1775144772249,
+      "tag": "0046_backfill_item_libraries_all",
+      "breakpoints": true
     }
   ]
 }
