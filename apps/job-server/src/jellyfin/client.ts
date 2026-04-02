@@ -4,6 +4,7 @@ import pRetry from "p-retry";
 import { Server } from "@streamystats/database";
 import { JellyfinSession } from "./types";
 import { getInternalUrl } from "../utils/server-url";
+import { STREAMYSTATS_VERSION } from "../jobs/server-jobs";
 
 export interface JellyfinConfig {
   baseURL: string;
@@ -43,6 +44,8 @@ export interface JellyfinUser {
   EnableAllDevices: boolean;
   EnableAllChannels: boolean;
   EnableAllFolders: boolean;
+  EnabledFolders?: string[];
+  Policy?: { EnabledFolders?: string[] };
   EnablePublicSharing: boolean;
   InvalidLoginAttemptCount: number;
   LoginAttemptsBeforeLockout: number;
@@ -369,7 +372,7 @@ export class JellyfinClient {
       baseURL: this.config.baseURL,
       timeout: this.config.timeout,
       headers: {
-        "X-Emby-Token": this.config.apiKey,
+        "Authorization": `MediaBrowser Client="Streamystats", Version="${STREAMYSTATS_VERSION}", Token="${this.config.apiKey}"`,
         "Content-Type": "application/json",
       },
     });
